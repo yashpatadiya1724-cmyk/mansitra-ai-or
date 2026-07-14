@@ -119,6 +119,14 @@ def init_db():
                 user_id     INTEGER PRIMARY KEY REFERENCES users(id),
                 preferences TEXT    NOT NULL DEFAULT '{}'
             );
+
+            CREATE TABLE IF NOT EXISTS journal_entries (
+                id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id     INTEGER NOT NULL REFERENCES users(id),
+                entry_type  TEXT    NOT NULL,
+                content     TEXT    NOT NULL,
+                created_at  TEXT    NOT NULL
+            );
         """)
     conn.close()
 
@@ -495,6 +503,46 @@ def get_preferences(user_id: int) -> dict:
     ).fetchone()
     conn.close()
     return json.loads(row["preferences"]) if row else {}
+
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# FEATURE 4 — JOURNAL & MOTIVATION
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+def save_journal_entry(user_id: int, entry_type: str, content: str):
+    """Saves a journal entry (e.g., 'achievement' or 'bad_time')."""
+    conn = _get_conn()
+    with conn:
+        conn.execute(
+            "INSERT INTO journal_entries (user_id, entry_type, content, created_at) "
+            "VALUES (?, ?, ?, ?)",
+            (user_id, entry_type, content, datetime.now(timezone.utc).isoformat()),
+        )
+    conn.close()
+
+
+def get_recent_achievements(user_id: int, limit: int = 3) -> list[str]:
+    """Returns recent achievements to inject into context when user is demotivated."""
+    conn = _get_conn()
+    rows = conn.execute(
+        "SELECT content FROM journal_entries WHERE user_id = ? AND entry_type = 'achievement' "
+        "ORDER BY created_at DESC LIMIT ?",
+        (user_id, limit),
+    ).fetchall()
+    conn.close()
+    return [r["content"] for r in rows]
+
+
+def get_journal_entries(user_id: int, limit: int = 20) -> list[dict]:
+    """Returns past journal entries for the UI."""
+    conn = _get_conn()
+    rows = conn.execute(
+        "SELECT entry_type, content, created_at FROM journal_entries WHERE user_id = ? "
+        "ORDER BY created_at DESC LIMIT ?",
+        (user_id, limit),
+    ).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
 
 
 # ── Init on import ─────────────────────────────────────────────────────────────

@@ -75,6 +75,7 @@ export async function getInnovationStatus() {
   return data
 }
 
+
 // ── Feature 2: LMPE — Mood patterns ──────────────────────────────────────────
 export async function getMoodPatterns(userName) {
   const { data } = await api.get('/mood/patterns', { params: { user_name: userName } })
@@ -93,4 +94,15 @@ export async function transcribeAudio(audioBlob) {
   form.append('file', audioBlob, 'recording.wav')
   const { data } = await api.post('/voice/transcribe', form)
   return data.transcription
+}
+
+// ── Journal ───────────────────────────────────────────────────────────────────
+export async function addJournalEntry(userName, entryType, content) {
+  const { data } = await api.post('/journal', { user_name: userName, entry_type: entryType, content })
+  return data
+}
+
+export async function getJournalEntries(userName, limit = 50) {
+  const { data } = await api.get('/journal', { params: { user_name: userName, limit } })
+  return data // { entries }
 }

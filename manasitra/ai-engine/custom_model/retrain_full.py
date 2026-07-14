@@ -1,0 +1,176 @@
+"""
+Manasitra — Full Retrain on Expanded Dataset
+=============================================
+Trains the model from scratch on the expanded dataset.
+Run this AFTER expand_dataset.py to train on all the new data.
+"""
+
+import json
+import os
+import math
+import torch
+import torch.nn as nn
+from torch.utils.data import Dataset, DataLoader
+from model import ManasitraTransformer, ManasitraTokenizer
+
+# -- Config (optimized for larger dataset) --
+DATASET_PATH = os.path.join(os.path.dirname(__file__), "psychology_dataset.json")
+SAVE_DIR     = os.path.join(os.path.dirname(__file__), "saved_model")
+MAX_LEN      = 64
+BATCH_SIZE   = 64
+EPOCHS       = 100      # more epochs for bigger dataset
+LR           = 5e-4
+D_MODEL      = 128
+NHEAD        = 4
+ENC_LAYERS   = 3
+DEC_LAYERS   = 3
+FFN_DIM      = 256
+DROPOUT      = 0.15
+
+os.makedirs(SAVE_DIR, exist_ok=True)
+
+
+class TherapyDataset(Dataset):
+    def __init__(self, data, tokenizer, max_len):
+        self.tokenizer = tokenizer
+        self.max_len   = max_len
+        self.pairs     = [(d["input"], d["response"]) for d in data]
+
+    def __len__(self):
+        return len(self.pairs)
+
+    def __getitem__(self, idx):
+        src_text, tgt_text = self.pairs[idx]
+        src = torch.tensor(self.tokenizer.encode(src_text, self.max_len), dtype=torch.long)
+        tgt = torch.tensor(self.tokenizer.encode(tgt_text, self.max_len), dtype=torch.long)
+        return src, tgt
+
+
+def full_retrain():
+    print("=" * 60)
+    print("  Manasitra — Full Retrain on Expanded Dataset")
+    print("=" * 60)
+
+    # Load data
+    with open(DATASET_PATH, encoding="utf-8") as f:
+        data = json.load(f)
+    print(f"Dataset: {len(data)} samples")
+
+    # Build fresh tokenizer from all data
+    all_texts = [d["input"] for d in data] + [d["response"] for d in data]
+    tokenizer = ManasitraTokenizer()
+    tokenizer.build_vocab(all_texts, min_freq=1)
+    tokenizer.save(os.path.join(SAVE_DIR, "tokenizer.json"))
+    print(f"Vocabulary size: {tokenizer.vocab_size}")
+
+    # Dataset + DataLoader
+    dataset    = TherapyDataset(data, tokenizer, MAX_LEN)
+    dataloader = DataLoader(dataset, batch_size=BATCH_SIZE, shuffle=True)
+
+    # Model
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    print(f"Device: {device}")
+
+    model = ManasitraTransformer(
+        vocab_size          = tokenizer.vocab_size,
+        d_model             = D_MODEL,
+        nhead               = NHEAD,
+        num_encoder_layers  = ENC_LAYERS,
+        num_decoder_layers  = DEC_LAYERS,
+        dim_feedforward     = FFN_DIM,
+        dropout             = DROPOUT,
+        max_len             = MAX_LEN,
+    ).to(device)
+
+    total_params = sum(p.numel() for p in model.parameters())
+    print(f"Model parameters: {total_params:,}")
+
+    # Loss + optimizer
+    pad_idx   = tokenizer.word2idx[ManasitraTokenizer.PAD]
+    criterion = nn.CrossEntropyLoss(ignore_index=pad_idx, label_smoothing=0.1)
+    optimizer = torch.optim.AdamW(model.parameters(), lr=LR, weight_decay=1e-4)
+    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=EPOCHS)
+
+    best_loss = float("inf")
+
+    print(f"\nTraining for {EPOCHS} epochs on {len(data)} samples...\n")
+
+    for epoch in range(1, EPOCHS + 1):
+        model.train()
+        total_loss = 0.0
+
+        for src, tgt in dataloader:
+            src, tgt = src.to(device), tgt.to(device)
+            tgt_in  = tgt[:, :-1]
+            tgt_out = tgt[:, 1:]
+
+            src_pad_mask = (src == pad_idx)
+            tgt_pad_mask = (tgt_in == pad_idx)
+
+            logits = model(src, tgt_in, src_pad_mask, tgt_pad_mask)
+            loss = criterion(
+                logits.reshape(-1, tokenizer.vocab_size),
+                tgt_out.reshape(-1),
+            )
+
+            optimizer.zero_grad()
+            loss.backward()
+            nn.utils.clip_grad_norm_(model.parameters(), 1.0)
+            optimizer.step()
+            total_loss += loss.item()
+
+        scheduler.step()
+        avg_loss = total_loss / len(dataloader)
+        ppl      = math.exp(min(avg_loss, 20))
+
+        if epoch % 10 == 0 or epoch == 1:
+            print(f"Epoch {epoch:3d}/{EPOCHS} | Loss: {avg_loss:.4f} | PPL: {ppl:.2f} | LR: {scheduler.get_last_lr()[0]:.6f}")
+
+        if avg_loss < best_loss:
+            best_loss = avg_loss
+            torch.save({
+                "epoch":       epoch,
+                "model_state": model.state_dict(),
+                "vocab_size":  tokenizer.vocab_size,
+                "config": {
+                    "d_model":    D_MODEL,
+                    "nhead":      NHEAD,
+                    "enc_layers": ENC_LAYERS,
+                    "dec_layers": DEC_LAYERS,
+                    "ffn_dim":    FFN_DIM,
+                    "dropout":    DROPOUT,
+                    "max_len":    MAX_LEN,
+                }
+            }, os.path.join(SAVE_DIR, "manasitra_model.pt"))
+
+    print(f"\n[DONE] Full retrain complete! Best loss: {best_loss:.4f}")
+    print(f"   Model saved to: {SAVE_DIR}/manasitra_model.pt")
+    print(f"   Tokenizer saved to: {SAVE_DIR}/tokenizer.json")
+
+    # Quick test
+    print("\n--- Quick inference test ---")
+    model.eval()
+    bos = tokenizer.word2idx[ManasitraTokenizer.BOS]
+    eos = tokenizer.word2idx[ManasitraTokenizer.EOS]
+    pad = tokenizer.word2idx[ManasitraTokenizer.PAD]
+
+    tests = [
+        "I feel so lonely, nobody talks to me",
+        "I am so stressed about my exams",
+        "I feel happy today",
+        "I am so angry at my friend",
+        "I keep worrying about everything",
+        "I don't see the point in anything anymore",
+    ]
+    for text in tests:
+        src = torch.tensor([tokenizer.encode(text, 64)], dtype=torch.long).to(device)
+        src_mask = (src == pad)
+        ids   = model.generate(src, src_mask, bos, eos, max_len=80, temperature=0.7, top_k=30)
+        reply = tokenizer.decode(ids)
+        print(f"  Input : {text}")
+        print(f"  Reply : {reply}")
+        print()
+
+
+if __name__ == "__main__":
+    full_retrain()

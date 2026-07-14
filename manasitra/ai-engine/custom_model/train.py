@@ -14,19 +14,19 @@ import torch.nn as nn
 from torch.utils.data import Dataset, DataLoader
 from model import ManasitraTransformer, ManasitraTokenizer
 
-# ── Config ────────────────────────────────────────────────────────────────────
-DATASET_PATH = os.path.join(os.path.dirname(__file__), "therapy_dataset.json")
+# ── Config (100M+ Parameters — 146,522,899 total) ────────────────────────────
+DATASET_PATH = os.path.join(os.path.dirname(__file__), "psychology_dataset.json")
 SAVE_DIR     = os.path.join(os.path.dirname(__file__), "saved_model")
-MAX_LEN      = 64       # shorter sequences = faster
-BATCH_SIZE   = 64       # bigger batches = faster per epoch
-EPOCHS       = 50       # 50 epochs, ~25-40 min on CPU
-LR           = 5e-4
-D_MODEL      = 128      # smaller model = much faster, still good
-NHEAD        = 4
-ENC_LAYERS   = 3
-DEC_LAYERS   = 3
-FFN_DIM      = 256
-DROPOUT      = 0.15
+MAX_LEN      = 64
+BATCH_SIZE   = 16       # reduced for 146M model to fit in CPU/RAM
+EPOCHS       = 150      # more epochs for larger model
+LR           = 2e-4     # lower LR for stability with large model
+D_MODEL      = 768      # scaled up from 128
+NHEAD        = 12       # scaled up from 4
+ENC_LAYERS   = 8        # scaled up from 3
+DEC_LAYERS   = 8        # scaled up from 3
+FFN_DIM      = 3072     # scaled up from 256
+DROPOUT      = 0.1
 
 os.makedirs(SAVE_DIR, exist_ok=True)
 
@@ -152,7 +152,7 @@ def train():
                 }
             }, os.path.join(SAVE_DIR, "manasitra_model.pt"))
 
-    print(f"\n✅ Training complete! Best loss: {best_loss:.4f}")
+    print(f"\n[DONE] Training complete! Best loss: {best_loss:.4f}")
     print(f"   Model saved to: {SAVE_DIR}/manasitra_model.pt")
     print(f"   Tokenizer saved to: {SAVE_DIR}/tokenizer.json")
 

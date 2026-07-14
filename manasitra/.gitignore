@@ -1,0 +1,13 @@
+.venv/
+__pycache__/
+*.pt
+*.bin
+*.json
+!KB.json
+*.db
+*.log
+*.txt
+frontend/node_modules/
+frontend/dist/
+.env
+.vscode/

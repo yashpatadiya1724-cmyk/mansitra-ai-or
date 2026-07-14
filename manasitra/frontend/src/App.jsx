@@ -1,6 +1,7 @@
 import { Routes, Route, NavLink } from 'react-router-dom'
 import ChatPage from './pages/ChatPage'
 import DashboardPage from './pages/DashboardPage'
+import JournalPage from './pages/JournalPage'
 
 export default function App() {
   return (
@@ -31,6 +32,16 @@ export default function App() {
         >
           Mood Dashboard
         </NavLink>
+        <NavLink
+          to="/journal"
+          className={({ isActive }) =>
+            `text-sm font-medium transition-colors ${
+              isActive ? 'text-manasitra-400' : 'text-slate-400 hover:text-slate-200'
+            }`
+          }
+        >
+          Journal
+        </NavLink>
       </nav>
 
       {/* Pages */}
@@ -38,6 +49,7 @@ export default function App() {
         <Routes>
           <Route path="/" element={<ChatPage />} />
           <Route path="/dashboard" element={<DashboardPage />} />
+          <Route path="/journal" element={<JournalPage />} />
         </Routes>
       </main>
     </div>

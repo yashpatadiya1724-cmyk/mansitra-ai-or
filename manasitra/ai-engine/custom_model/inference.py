@@ -66,7 +66,7 @@ def generate(
     top_k:       int = 40,
 ) -> str:
     """
-    Generate a therapy response for the given input text.
+    Generate a psychologist response for the given input text.
     Returns the response string.
     """
     model, tokenizer = _load()
@@ -112,4 +112,4 @@ if __name__ == "__main__":
         for text, emotion in tests:
             reply = generate(text, emotion)
             print(f"[{emotion}] {text}")
-            print(f"  → {reply}\n")
+            print(f"  -> {reply}\n")

@@ -22,6 +22,13 @@ from fastapi import FastAPI, HTTPException, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../ai-engine"))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../ai-engine/custom_model"))
+
+from fastapi import FastAPI, HTTPException, UploadFile, File
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
+from pydantic import BaseModel
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -44,6 +51,10 @@ from memory_engine.memory import (
     get_last_emotion,
     record_emotion_transition,
     get_current_transition,
+    # Feature 4 - Journal
+    save_journal_entry,
+    get_recent_achievements,
+    get_journal_entries,
 )
 from response_engine.conversation_brain import (
     generate_response,
@@ -85,6 +96,12 @@ class ChatResponse(BaseModel):
     transition:  dict | None = None
     patterns:    list[str] = []
     technical_proof: dict = {}
+
+
+class JournalRequest(BaseModel):
+    user_name:  str = "Friend"
+    entry_type: str  # "achievement" or "bad_time"
+    content:    str
 
 
 # ── Health ────────────────────────────────────────────────────────────────────
@@ -190,7 +207,11 @@ def chat(req: ChatRequest):
     dominant_mood = get_dominant_mood(user_id, limit=10)
     model_used    = get_available_model()
 
-    # 3. Generate response with all 3 features
+    distressed = emotion in ["sad", "lonely", "stress", "anxiety", "angry", "overwhelmed", "grief"]
+    achievements = get_recent_achievements(user_id, limit=3) if distressed else []
+    past_journals = get_journal_entries(user_id, limit=3) if distressed else []
+
+    # 3. Generate response with all 4 features
     reply = generate_response(
         user_message     = safe_message,
         emotion          = emotion,
@@ -200,6 +221,8 @@ def chat(req: ChatRequest):
         pattern_insights = pattern_insights,
         weighted_memory  = weighted_memory,
         transition       = transition,
+        achievements     = achievements,
+        past_journals    = past_journals,
     )
 
     save_message(user_id, "assistant", reply)
@@ -257,6 +280,10 @@ def chat_stream(req: ChatRequest):
     history       = get_recent_conversation(user_id, limit=10)
     dominant_mood = get_dominant_mood(user_id, limit=10)
 
+    distressed = emotion in ["sad", "lonely", "stress", "anxiety", "angry", "overwhelmed", "grief"]
+    achievements = get_recent_achievements(user_id, limit=3) if distressed else []
+    past_journals = get_journal_entries(user_id, limit=3) if distressed else []
+
     def event_generator():
         full_reply = []
         for token in generate_response_stream(
@@ -268,6 +295,8 @@ def chat_stream(req: ChatRequest):
             pattern_insights = pattern_insights,
             weighted_memory  = weighted_memory,
             transition       = transition,
+            achievements     = achievements,
+            past_journals    = past_journals,
         ):
             full_reply.append(token)
             yield f"data: {json.dumps({'token': token})}\n\n"
@@ -342,3 +371,16 @@ async def transcribe(file: UploadFile = File(...)):
     finally:
         os.unlink(tmp_path)
     return {"transcription": text}
+
+# ── Journal endpoints ─────────────────────────────────────────────────────────
+@app.post("/journal")
+def add_journal_entry(req: JournalRequest):
+    user_id = get_or_create_user(req.user_name)
+    save_journal_entry(user_id, req.entry_type, req.content)
+    return {"status": "ok", "message": "Journal entry saved successfully."}
+
+@app.get("/journal")
+def get_journal(user_name: str, limit: int = 20):
+    user_id = get_or_create_user(user_name)
+    entries = get_journal_entries(user_id, limit)
+    return {"user": user_name, "entries": entries}

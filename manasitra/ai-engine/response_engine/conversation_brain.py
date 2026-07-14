@@ -24,7 +24,7 @@ import json
 from typing import Optional, Generator
 
 # Add custom_model to path
-_CUSTOM_MODEL_DIR = os.path.join(os.path.dirname(__file__), "../custom_model")
+_CUSTOM_MODEL_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "custom_model"))
 if _CUSTOM_MODEL_DIR not in sys.path:
     sys.path.insert(0, _CUSTOM_MODEL_DIR)
 
@@ -34,9 +34,16 @@ OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "manasitra")
 CHAT_URL     = f"{OLLAMA_BASE}/api/chat"
 
 # ── Custom model ──────────────────────────────────────────────────────────────
+import os
+import sys
+
+custom_model_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "custom_model"))
+if custom_model_path not in sys.path:
+    sys.path.append(custom_model_path)
+
 def _custom_model_available() -> bool:
     try:
-        from inference import is_model_trained
+        from inference import is_model_trained  # type: ignore
         if not is_model_trained():
             return False
         # Also check model is trained enough (epoch >= 20 for decent quality)
@@ -55,7 +62,7 @@ def _custom_model_available() -> bool:
 def _call_custom_model(text: str, emotion: str) -> Optional[str]:
     """Call our own trained Seq2Seq model — no LLM, no Ollama."""
     try:
-        from inference import generate
+        from inference import generate  # type: ignore
         reply = generate(text, emotion)
         return reply if reply and len(reply.strip()) > 10 else None
     except Exception:
@@ -101,12 +108,12 @@ STRICT RULES — follow every single one:
 1. VALIDATE first — acknowledge the emotion before anything else
 2. NEVER assume facts the user didn't mention (no wife, no family, no job unless they said so)
 3. NEVER diagnose — do not say "serious mental illness", "depression", "disorder"
-4. NEVER suggest a counselor/therapist unless user asks or it's a crisis
-5. Ask exactly ONE follow-up question at the end
+4. NEVER suggest another professional unless user asks or it's a crisis
+5. Ask exactly ONE analytical follow-up question at the end to explore cognitive/behavioral patterns
 6. Keep response to 3-5 sentences maximum
 7. Use the correct emoji for the emotion — NEVER use 😊 for sad/stressed/angry/lonely input
 8. Do NOT end with a happy emoji if the user is distressed
-9. Sound like a caring human friend, not a clinical professional
+9. Sound like a professional, analytical, and empathetic clinical psychologist
 10. Never say "As an AI" or "I am a language model"
 """
 
@@ -229,6 +236,8 @@ def _build_messages(
     pattern_insights: list[str],
     weighted_memory:  list[dict],
     transition:       Optional[dict],
+    achievements:     list[str] = [],
+    past_journals:    list[dict] = [],
 ) -> list[dict]:
     messages = []
 
@@ -260,6 +269,16 @@ def _build_messages(
         guidance = TRANSITION_GUIDANCE.get(transition.get("transition_type", ""), "")
         if guidance:
             context_lines.append(guidance)
+
+    # Feature 4 - Journal Motivation
+    if achievements:
+        context_lines.append("User's past achievements: " + " | ".join(achievements))
+        context_lines.append("NOTE: User is feeling demotivated/distressed. Mention their achievements gently to motivate them.")
+
+    if past_journals:
+        journal_texts = [f"[{j.get('created_at', '')[:10]}] {j.get('content', '')}" for j in past_journals]
+        context_lines.append("User's recent journal entries for context: " + " | ".join(journal_texts))
+        context_lines.append("Use this deep context gently to understand their pain points, but do not aggressively quote it back to them.")
 
     context_lines.append("")
     context_lines.append(STRICT_RULES)
@@ -319,12 +338,25 @@ def generate_response(
     pattern_insights: list[str] = [],
     weighted_memory:  list[dict] = [],
     transition:       Optional[dict] = None,
+    achievements:     list[str] = [],
+    past_journals:    list[dict] = [],
 ) -> str:
     if is_crisis(user_message):
         return CRISIS_RESPONSE
 
     # 1. Try our own custom trained model first
     if _custom_model_available():
+        # Inject achievements and journals into custom model input
+        if achievements or past_journals:
+            context_parts = []
+            if achievements:
+                context_parts.append("ACHIEVEMENTS: " + " | ".join(achievements))
+            if past_journals:
+                j_texts = [j.get("content", "") for j in past_journals]
+                context_parts.append("JOURNALS: " + " | ".join(j_texts))
+            
+            user_message = f"{user_message} [{' --- '.join(context_parts)}]"
+            
         reply = _call_custom_model(user_message, emotion)
         if reply:
             if not _reply_breaks_emotional_rules(reply, emotion, user_message):
@@ -336,7 +368,7 @@ def generate_response(
     if model:
         messages = _build_messages(
             user_message, emotion, history, user_name,
-            dominant_mood, pattern_insights, weighted_memory, transition,
+            dominant_mood, pattern_insights, weighted_memory, transition, achievements, past_journals
         )
         reply = _call_ollama(messages, model)
         if reply:
@@ -357,6 +389,8 @@ def generate_response_stream(
     pattern_insights: list[str] = [],
     weighted_memory:  list[dict] = [],
     transition:       Optional[dict] = None,
+    achievements:     list[str] = [],
+    past_journals:    list[dict] = [],
 ) -> Generator[str, None, None]:
     if is_crisis(user_message):
         yield CRISIS_RESPONSE
@@ -364,6 +398,16 @@ def generate_response_stream(
 
     # 1. Custom model — yield word by word for streaming effect
     if _custom_model_available():
+        if achievements or past_journals:
+            context_parts = []
+            if achievements:
+                context_parts.append("ACHIEVEMENTS: " + " | ".join(achievements))
+            if past_journals:
+                j_texts = [j.get("content", "") for j in past_journals]
+                context_parts.append("JOURNALS: " + " | ".join(j_texts))
+            
+            user_message = f"{user_message} [{' --- '.join(context_parts)}]"
+            
         reply = _call_custom_model(user_message, emotion)
         if reply:
             if _reply_breaks_emotional_rules(reply, emotion, user_message):
@@ -377,7 +421,7 @@ def generate_response_stream(
     if model:
         messages = _build_messages(
             user_message, emotion, history, user_name,
-            dominant_mood, pattern_insights, weighted_memory, transition,
+            dominant_mood, pattern_insights, weighted_memory, transition, achievements, past_journals
         )
         try:
             chunks = []

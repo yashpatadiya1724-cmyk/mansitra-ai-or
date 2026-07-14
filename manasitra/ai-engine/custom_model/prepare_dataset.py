@@ -19,8 +19,8 @@ import random
 ROOT         = os.path.join(os.path.dirname(__file__), "../../..")
 TRAIN_CSV    = os.path.join(ROOT, "train.csv")
 KB_JSON      = os.path.join(ROOT, "KB.json")
-EXISTING     = os.path.join(os.path.dirname(__file__), "therapy_dataset.json")
-OUTPUT       = os.path.join(os.path.dirname(__file__), "therapy_dataset.json")
+EXISTING     = os.path.join(os.path.dirname(__file__), "psychology_dataset.json")
+OUTPUT       = os.path.join(os.path.dirname(__file__), "psychology_dataset.json")
 
 MAX_INPUT_LEN    = 200   # chars — truncate very long inputs
 MAX_RESPONSE_LEN = 400   # chars — truncate very long responses
@@ -77,17 +77,7 @@ if os.path.exists(EXISTING):
 
 
 # ── 2. Load train.csv (real therapist conversations) ─────────────────────────
-print("Loading train.csv...")
-csv_count = 0
-with open(TRAIN_CSV, encoding="utf-8") as f:
-    reader = csv.DictReader(f)
-    for row in reader:
-        ctx  = row.get("Context", "").strip()
-        resp = row.get("Response", "").strip()
-        if ctx and resp:
-            add(ctx, resp)
-            csv_count += 1
-print(f"  Loaded {csv_count} pairs from train.csv")
+print("Skipping train.csv (file deleted)...")
 
 
 # ── 3. Load KB.json (intent patterns + responses) ────────────────────────────

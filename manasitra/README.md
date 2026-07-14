@@ -31,9 +31,16 @@ npm install
 npm run dev
 ```
 
+### Prepare Dataset
+```bash
+cd ai-engine
+python custom_model/prepare_dataset.py
+```
+
 ### Train Emotion Model
 ```bash
 cd ai-engine
 pip install -r requirements.txt
 python emotion_model/train.py
 ```
+

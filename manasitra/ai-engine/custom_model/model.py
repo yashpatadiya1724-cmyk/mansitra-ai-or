@@ -103,7 +103,7 @@ class ManasitraTokenizer:
         text = re.sub(r"'\s+m\b",  "'m",  text)
         text = re.sub(r"'\s+d\b",  "'d",  text)
         # Fix â encoding artifact
-        text = text.replace("â", "—").replace("â€™", "'").replace("â€"", "—")
+        text = text.replace("â", "—").replace("â€™", "'").replace("â€\"", "—")
         text = re.sub(r'\s+', ' ', text)
         # Capitalize first letter
         text = text.strip()
@@ -228,7 +228,7 @@ class ManasitraTransformer(nn.Module):
     ) -> torch.Tensor:
         tgt_mask = nn.Transformer.generate_square_subsequent_mask(
             tgt.size(1), device=src.device
-        )
+        ).bool()
         memory = self.encode(src, src_key_padding_mask)
         return self.decode(tgt, memory, tgt_mask, tgt_key_padding_mask, src_key_padding_mask)
 
