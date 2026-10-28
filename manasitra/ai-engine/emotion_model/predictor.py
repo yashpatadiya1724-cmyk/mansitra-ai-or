@@ -1,14 +1,14 @@
 """
-Manasitra Emotion Predictor v2
+Manasitra Emotion Predictor v2.1 — Multilingual / Hinglish Enhanced
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 Detects 9 emotions with compound scoring:
   happy, sad, angry, stress, anxiety, lonely, overwhelmed, neutral, grief
 
 Rules:
-- Keyword scoring with intensity weights
+- Multilingual & Hinglish keyword scoring with intensity weights
 - Compound detection (stress + sad = overwhelmed)
-- Context negation handling ("not happy" → sad)
-- Never returns wrong emotion for clearly distressed input
+- Context negation handling ("not happy" / "khush nahi" -> sad)
+- Never returns happy for clearly distressed input
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 """
 
@@ -26,6 +26,8 @@ _KEYWORDS: dict[str, list[tuple[str, float]]] = {
         ("laugh", 0.7), ("proud", 0.8), ("grateful", 0.8), ("cheerful", 0.9),
         ("elated", 1.0), ("thrilled", 0.9), ("delighted", 0.9), ("good news", 0.8),
         ("passed", 0.7), ("got marks", 0.8), ("promotion", 0.8), ("celebrate", 0.8),
+        ("khush", 1.0), ("khushi", 1.0), ("sukoon", 0.9), ("achha lag raha", 0.9),
+        ("badhiya", 0.8), ("maza aa gaya", 0.9), ("anand", 0.9), ("shandar", 0.8),
     ],
     "sad": [
         ("sad", 1.0), ("cry", 1.0), ("crying", 1.0), ("tears", 0.9),
@@ -37,6 +39,11 @@ _KEYWORDS: dict[str, list[tuple[str, float]]] = {
         ("miss", 0.6), ("miss them", 0.8), ("gone", 0.6),
         ("tired and alone", 0.9), ("feel tired", 0.7), ("feeling tired", 0.7),
         ("not doing enough", 0.8),
+        ("udas", 1.0), ("udaas", 1.0), ("rona", 1.0), ("ro raha", 1.0),
+        ("ro rahi", 1.0), ("aansoo", 0.9), ("aansu", 0.9), ("dil toot", 1.0),
+        ("dukh", 0.9), ("dukhi", 1.0), ("dard", 0.8), ("takleef", 0.9),
+        ("mayus", 0.9), ("mayoos", 0.9), ("bebas", 0.8), ("achha nahi lag raha", 0.9),
+        ("theek nahi", 0.8), ("khush nahi", 0.9), ("khush nhi", 0.9),
     ],
     "angry": [
         ("angry", 1.0), ("anger", 1.0), ("furious", 1.0), ("rage", 1.0),
@@ -44,6 +51,8 @@ _KEYWORDS: dict[str, list[tuple[str, float]]] = {
         ("irritated", 0.7), ("outraged", 1.0), ("betrayed", 0.9),
         ("unfair", 0.8), ("scream", 0.9), ("explode", 0.9), ("livid", 1.0),
         ("fed up", 0.8), ("sick of", 0.8), ("can't stand", 0.8),
+        ("gussa", 1.0), ("gusse", 0.9), ("naraz", 0.8), ("nafrat", 0.9),
+        ("chidh", 0.8), ("krodh", 1.0), ("dhokha diya", 0.9), ("bardasht nahi", 0.9),
     ],
     "stress": [
         ("stress", 1.0), ("stressed", 1.0), ("deadline", 0.9), ("pressure", 0.9),
@@ -56,6 +65,9 @@ _KEYWORDS: dict[str, list[tuple[str, float]]] = {
         ("trying to stay strong", 0.9), ("stay strong in front of everyone", 1.0),
         ("others are moving ahead", 0.9), ("everyone is moving ahead", 0.9),
         ("comparing myself", 0.8), ("comparison", 0.7),
+        ("tension", 1.0), ("bojh", 0.9), ("pareshan", 0.9), ("preshan", 0.9),
+        ("pareshani", 0.9), ("thak gaya", 0.8), ("thak gayi", 0.8),
+        ("dimag kharab", 0.8), ("neend nahi", 0.8), ("neend nhi", 0.8),
     ],
     "anxiety": [
         ("anxious", 1.0), ("anxiety", 1.0), ("worry", 0.9), ("worried", 0.9),
@@ -64,6 +76,8 @@ _KEYWORDS: dict[str, list[tuple[str, float]]] = {
         ("dread", 0.9), ("terrified", 1.0), ("uneasy", 0.7), ("restless", 0.7),
         ("what if", 0.8), ("can't stop thinking", 0.9), ("mind won't stop", 0.9),
         ("catastroph", 0.8), ("worst case", 0.8),
+        ("ghabrahat", 1.0), ("dar lag", 0.9), ("dar", 0.7), ("darr", 0.8),
+        ("bechain", 0.9), ("bechaini", 1.0), ("dhak dhak", 0.8), ("khauf", 0.9),
     ],
     "lonely": [
         ("lonely", 1.0), ("alone", 0.9), ("isolated", 1.0), ("no one", 0.9),
@@ -73,6 +87,9 @@ _KEYWORDS: dict[str, list[tuple[str, float]]] = {
         ("nobody cares", 1.0), ("no one understands", 1.0), ("misunderstood", 0.8),
         ("sit alone", 0.9), ("eat alone", 0.9), ("feel alone", 0.9),
         ("feeling alone", 0.9), ("tired and alone", 1.0),
+        ("akela", 1.0), ("akeli", 1.0), ("akelapan", 1.0), ("koi nahi hai", 1.0),
+        ("koi baat nahi karta", 1.0), ("koi sunne wala nahi", 1.0), ("tanha", 1.0),
+        ("tanhai", 1.0), ("koi dost nahi", 1.0), ("koi samjhta nahi", 1.0),
     ],
     "overwhelmed": [
         ("overwhelmed", 1.0), ("too much going on", 1.0), ("can't handle", 1.0),
@@ -85,17 +102,22 @@ _KEYWORDS: dict[str, list[tuple[str, float]]] = {
         ("others are moving ahead", 0.8), ("everyone is moving ahead", 0.8),
         ("trying to stay strong", 0.8), ("tired and alone", 1.0),
         ("exhausting", 0.8), ("heaviest", 0.7),
+        ("kuch samajh nahi aa raha", 1.0), ("sambhal nahi raha", 1.0),
+        ("himmat toot gayi", 1.0), ("toot chuka", 1.0), ("toot chuki", 1.0),
+        ("bardasht se bahar", 1.0),
     ],
     "grief": [
         ("lost someone", 1.0), ("passed away", 1.0), ("died", 1.0), ("death", 0.9),
         ("funeral", 1.0), ("mourning", 1.0), ("grieving", 1.0), ("miss them", 0.9),
         ("they're gone", 1.0), ("never coming back", 1.0), ("loss", 0.8),
+        ("mar gaye", 1.0), ("guzar gaye", 1.0), ("chhod kar chale gaye", 1.0),
+        ("dehant", 1.0), ("mrit", 0.9),
     ],
 }
 
-# ── Negation patterns ─────────────────────────────────────────────────────────
+# ── Negation patterns (English + Hinglish) ──────────────────────────────────
 _NEGATIONS = re.compile(
-    r"\b(not|never|no|don't|doesn't|didn't|can't|cannot|won't|isn't|aren't|wasn't)\b\s+\w+",
+    r"\b(not|never|no|don't|doesn't|didn't|can't|cannot|won't|isn't|aren't|wasn't|nahi|nhi|mat)\b\s+\w+",
     re.IGNORECASE
 )
 
@@ -172,11 +194,15 @@ def predict_emotion(text: str) -> dict:
     top   = max(probs, key=probs.get)
 
     # ── Safety: never return happy for clearly distressed text ────────────────
-    distress_words = ["sad", "cry", "depress", "hopeless", "worthless", "lonely",
-                      "stress", "anxious", "overwhelm", "angry", "furious", "grief",
-                      "lost", "broken", "hurt", "pain", "alone", "nobody", "no one"]
+    distress_words = [
+        "sad", "cry", "depress", "hopeless", "worthless", "lonely",
+        "stress", "anxious", "overwhelm", "angry", "furious", "grief",
+        "lost", "broken", "hurt", "pain", "alone", "nobody", "no one",
+        "udas", "udaas", "rona", "dard", "takleef", "akela", "akeli",
+        "pareshan", "preshan", "tension", "gussa", "dar", "bechain",
+        "toot", "tanhai"
+    ]
     if top == "happy" and any(w in text_lower for w in distress_words):
-        # Recalculate without happy
         probs["happy"] = 0.0
         total2 = sum(probs.values()) or 1.0
         probs  = {k: round(v / total2, 4) for k, v in probs.items()}
@@ -201,7 +227,11 @@ if __name__ == "__main__":
         "College pressure is too much, I feel like I'm falling behind everyone.",
         "I lost my grandmother last week and I can't stop crying.",
         "I'm stressed about exams and also feeling very alone.",
+        "aaj bahut udaas hu aur rona aa raha hai",
+        "bahut tension aur pressure hai exams ka",
+        "koi mera dost nahi hai, akela lag raha hai",
+        "aaj mai bahut khush hu",
     ]
     for t in tests:
         r = predict_emotion(t)
-        print(f"[{r['emotion']:12s} {r['emoji']} {r['confidence']*100:5.1f}%] {t[:60]}")
+        print(f"[{r['emotion']:12s} {r['confidence']*100:5.1f}%] {t[:60]}")
