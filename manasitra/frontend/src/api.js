@@ -1,6 +1,7 @@
 import axios from 'axios'
 
-const api = axios.create({ baseURL: '/api' })
+const API_BASE_URL = import.meta.env.VITE_API_URL || '/api'
+const api = axios.create({ baseURL: API_BASE_URL })
 
 // ── Blocking chat ─────────────────────────────────────────────────────────────
 export async function sendMessage(userName, message) {
@@ -17,7 +18,7 @@ export async function sendMessage(userName, message) {
  * @param {(meta: object) => void}  onDone    - called once with { emotion, confidence, scores }
  */
 export async function sendMessageStream(userName, message, onToken, onDone) {
-  const response = await fetch('/api/chat/stream', {
+  const response = await fetch(`${API_BASE_URL}/chat/stream`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ user_name: userName, message }),
