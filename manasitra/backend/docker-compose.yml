@@ -1,0 +1,33 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: ..
+      dockerfile: backend/Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      - PORT=8000
+      - DATABASE_PATH=/app/database/manasitra.db
+      - OLLAMA_URL=http://ollama:11434
+      - CORS_ORIGINS=http://localhost:5173,http://localhost:3000
+    volumes:
+      - ../ai-engine:/app/ai-engine
+      - ../database:/app/database
+      - ../backend:/app/backend
+    depends_on:
+      - ollama
+    restart: always
+
+  ollama:
+    image: ollama/ollama:latest
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    restart: always
+
+volumes:
+  sqlite_data:
+  ollama_data:
