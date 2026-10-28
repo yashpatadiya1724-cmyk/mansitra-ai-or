@@ -1,7 +1,13 @@
-node_modules
-__pycache__
+node_modules/
+__pycache__/
 *.pyc
 .env
-.venv
+.venv/
 *.pt
+*.bin
 saved_model/
+*.tar.gz
+*.zip
+*.log
+.DS_Store
+Thumbs.db
