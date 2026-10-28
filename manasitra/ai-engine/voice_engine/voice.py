@@ -1,32 +1,36 @@
 """
 Manasitra Voice Engine
-- Speech-to-Text: OpenAI Whisper (local)
+- Speech-to-Text: OpenAI Whisper (local, cached model)
 - Text-to-Speech: Coqui TTS (local)
 """
 
 import os
 import tempfile
+from functools import lru_cache
 from typing import Optional
-import sounddevice as sd
-import soundfile as sf
-import numpy as np
 
 # ── Speech-to-Text (Whisper) ───────────────────────────────────────────────────
 
-def transcribe_audio(audio_path: str, model_size: str = "base") -> str:
-    """
-    Transcribe an audio file to text using Whisper.
-    model_size: tiny | base | small | medium | large
-    """
+@lru_cache(maxsize=2)
+def _get_whisper_model(model_size: str = "base"):
+    """Cache loaded Whisper model to prevent multi-second reloads on every transcription."""
     try:
         import whisper
-        model = whisper.load_model(model_size)
-        result = model.transcribe(audio_path)
-        return result["text"].strip()
+        return whisper.load_model(model_size)
     except ImportError:
         raise RuntimeError(
             "Whisper not installed. Run: pip install openai-whisper"
         )
+
+
+def transcribe_audio(audio_path: str, model_size: str = "base") -> str:
+    """
+    Transcribe an audio file to text using cached Whisper model.
+    model_size: tiny | base | small | medium | large
+    """
+    model = _get_whisper_model(model_size)
+    result = model.transcribe(audio_path)
+    return result.get("text", "").strip()
 
 
 def record_audio(duration: int = 5, sample_rate: int = 16000) -> str:
@@ -34,6 +38,12 @@ def record_audio(duration: int = 5, sample_rate: int = 16000) -> str:
     Record audio from microphone for `duration` seconds.
     Returns path to the saved WAV file.
     """
+    try:
+        import sounddevice as sd
+        import soundfile as sf
+    except ImportError:
+        raise RuntimeError("Microphone recording requires sounddevice & soundfile. Run: pip install sounddevice soundfile")
+
     print(f"🎙️  Recording for {duration} seconds...")
     audio = sd.rec(
         int(duration * sample_rate),
@@ -51,7 +61,6 @@ def record_audio(duration: int = 5, sample_rate: int = 16000) -> str:
 
 # ── Text-to-Speech (Coqui TTS) ────────────────────────────────────────────────
 
-# Emotion → TTS speed / pitch adjustments (descriptive, applied via speaker settings)
 EMOTION_VOICE_STYLE = {
     "happy":   {"speed": 1.1},
     "sad":     {"speed": 0.85},
@@ -74,7 +83,6 @@ def speak(text: str, emotion: str = "neutral", output_path: Optional[str] = None
         raise RuntimeError("Coqui TTS not installed. Run: pip install TTS")
 
     style = EMOTION_VOICE_STYLE.get(emotion, EMOTION_VOICE_STYLE["neutral"])
-
     tts = TTS(model_name="tts_models/en/ljspeech/tacotron2-DDC", progress_bar=False)
 
     if output_path is None:
@@ -87,6 +95,12 @@ def speak(text: str, emotion: str = "neutral", output_path: Optional[str] = None
 
 def play_audio(file_path: str):
     """Play a WAV file through the speakers."""
+    try:
+        import sounddevice as sd
+        import soundfile as sf
+    except ImportError:
+        raise RuntimeError("Audio playback requires sounddevice & soundfile. Run: pip install sounddevice soundfile")
+
     data, samplerate = sf.read(file_path)
     sd.play(data, samplerate)
     sd.wait()
