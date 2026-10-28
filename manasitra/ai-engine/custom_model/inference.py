@@ -10,8 +10,6 @@ No Ollama. No external LLM. 100% custom.
 
 """
 
-
-
 import os
 
 import torch
@@ -20,15 +18,11 @@ from functools import lru_cache
 
 from model import ManasitraTransformer, ManasitraTokenizer
 
-
-
 SAVE_DIR   = os.path.join(os.path.dirname(__file__), "saved_model")
 
 MODEL_PATH = os.path.join(SAVE_DIR, "manasitra_model.pt")
 
 TOK_PATH   = os.path.join(SAVE_DIR, "tokenizer.json")
-
-
 
 # Emotion-aware temperature — distress = more careful/warm, happy = more expressive
 
@@ -52,10 +46,6 @@ EMOTION_TEMP = {
 
 }
 
-
-
-
-
 @lru_cache(maxsize=1)
 
 def _load() -> tuple:
@@ -72,15 +62,11 @@ def _load() -> tuple:
 
         )
 
-
-
     checkpoint = torch.load(MODEL_PATH, map_location="cpu", weights_only=False)
 
     cfg        = checkpoint["config"]
 
     tokenizer  = ManasitraTokenizer.load(TOK_PATH)
-
-
 
     model = ManasitraTransformer(
 
@@ -108,17 +94,9 @@ def _load() -> tuple:
 
     return model, tokenizer
 
-
-
-
-
 def is_model_trained() -> bool:
 
     return os.path.exists(MODEL_PATH) and os.path.exists(TOK_PATH)
-
-
-
-
 
 def generate(
     text:        str,
@@ -161,37 +139,25 @@ def generate(
         return _fallback(emotion)
     return reply
 
-
-
-
-
 def _is_coherent(reply: str) -> bool:
-
-    """Verify that generated text has grammatical coherence and minimal lexical quality."""
-
+    """Verify that generated text has grammatical coherence, no punctuation prefixes, and healthy word-to-punct ratios."""
     import re
-
-    if not reply or len(reply.strip()) < 12:
-
+    if not reply or len(reply.strip()) < 15:
         return False
-
-    words = re.findall(r"\b[A-Za-z]{2,}\b", reply)
-
-    if len(words) < 4:
-
+    r = reply.strip()
+    # Cannot start with punctuation
+    if r[0] in "?.!,;:-":
         return False
-
-    punct_count = len(re.findall(r"[?.!,;:\-]", reply))
-
-    if punct_count > len(words):
-
+    # Cannot have repeated punctuation
+    if re.search(r"[?.!,;:-]{2,}", r):
         return False
-
+    words = re.findall(r"[A-Za-z]{2,}", r)
+    if len(words) < 5:
+        return False
+    punct = re.findall(r"['\"?.!,;:-]", r)
+    if len(punct) > len(words) * 0.4:
+        return False
     return True
-
-
-
-
 
 def _fallback(emotion: str) -> str:
 
@@ -218,10 +184,6 @@ def _fallback(emotion: str) -> str:
     }
 
     return fallbacks.get(emotion, "I'm here for you. Tell me what's going on.")
-
-
-
-
 
 if __name__ == "__main__":
 
