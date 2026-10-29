@@ -495,7 +495,8 @@ class ManasitraTransformer(nn.Module):
         ).bool()
 
         stop_set = {eos_idx} | set(early_stop_ids)
-        min_sentence_len = 10
+        min_sentence_len = 8
+        emitted_tokens = set()
 
         for _ in range(max_len):
             cur_len = ys.size(1)
@@ -508,14 +509,13 @@ class ManasitraTransformer(nn.Module):
             for tok in suppress_tokens:
                 logits[:, tok] = float("-inf")
 
-            # Repetition penalty for already emitted tokens
-            if repetition_penalty > 1.0:
-                for token_id in set(ys[0].tolist()):
-                    if token_id not in (0, 1, bos_idx, eos_idx):
-                        if logits[:, token_id] > 0:
-                            logits[:, token_id] /= repetition_penalty
-                        else:
-                            logits[:, token_id] *= repetition_penalty
+            # Fast repetition penalty for already emitted tokens without list/set allocations
+            if repetition_penalty > 1.0 and emitted_tokens:
+                for token_id in emitted_tokens:
+                    if logits[:, token_id] > 0:
+                        logits[:, token_id] /= repetition_penalty
+                    else:
+                        logits[:, token_id] *= repetition_penalty
 
             # Top-k filtering
             if top_k > 0:
@@ -528,6 +528,8 @@ class ManasitraTransformer(nn.Module):
             next_tok  = torch.multinomial(probs, 1)
             tok_id    = next_tok.item()
             ys        = torch.cat([ys, next_tok], dim=1)
+            if tok_id not in (0, 1, bos_idx, eos_idx):
+                emitted_tokens.add(tok_id)
 
             if tok_id == eos_idx:
                 break

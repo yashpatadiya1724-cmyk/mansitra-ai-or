@@ -94,6 +94,23 @@ def _load() -> tuple:
 
     return model, tokenizer
 
+def warmup_model() -> bool:
+    """Pre-load model weights and run a 1-step dry run so first user request incurs zero cold-start delay."""
+    if not is_model_trained():
+        return False
+    try:
+        model, tokenizer = _load()
+        pad_idx = tokenizer.word2idx[ManasitraTokenizer.PAD]
+        bos_idx = tokenizer.word2idx[ManasitraTokenizer.BOS]
+        eos_idx = tokenizer.word2idx[ManasitraTokenizer.EOS]
+        src = torch.tensor([[bos_idx, eos_idx]], dtype=torch.long)
+        src_mask = (src == pad_idx)
+        with torch.inference_mode():
+            _ = model.generate(src, src_mask, bos_idx, eos_idx, max_len=3)
+        return True
+    except Exception:
+        return False
+
 def is_model_trained() -> bool:
 
     return os.path.exists(MODEL_PATH) and os.path.exists(TOK_PATH)
@@ -151,7 +168,7 @@ def _is_coherent(reply: str) -> bool:
     # Cannot have repeated punctuation
     if re.search(r"[?.!,;:-]{2,}", r):
         return False
-    words = re.findall(r"[A-Za-z]{2,}", r)
+    words = re.findall(r"\b[A-Za-z]{2,}\b", r)
     if len(words) < 5:
         return False
     punct = re.findall(r"['\"?.!,;:-]", r)
