@@ -5,7 +5,8 @@ __pycache__/
 .venv/
 *.pt
 *.bin
-saved_model/
+saved_model/*.pt
+saved_model/*.bin
 *.tar.gz
 *.zip
 *.log

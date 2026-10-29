@@ -338,6 +338,8 @@ class ManasitraTransformer(nn.Module):
 
         max_len:     int = 128,
 
+        init_weights: bool = True,
+
     ):
 
         super().__init__()
@@ -384,7 +386,9 @@ class ManasitraTransformer(nn.Module):
 
 
 
-        self._init_weights()
+        if init_weights:
+
+            self._init_weights()
 
 
 

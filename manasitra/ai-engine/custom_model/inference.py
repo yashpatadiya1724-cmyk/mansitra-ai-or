@@ -50,7 +50,7 @@ EMOTION_TEMP = {
 
 def _load() -> tuple:
 
-    """Load model + tokenizer once, cache forever."""
+    """Load model + tokenizer once with zero-copy memory mapping and instant instantiation."""
 
     if not os.path.exists(MODEL_PATH):
 
@@ -62,7 +62,7 @@ def _load() -> tuple:
 
         )
 
-    checkpoint = torch.load(MODEL_PATH, map_location="cpu", weights_only=False)
+    checkpoint = torch.load(MODEL_PATH, map_location="cpu", mmap=True, weights_only=False)
 
     cfg        = checkpoint["config"]
 
@@ -86,9 +86,11 @@ def _load() -> tuple:
 
         max_len             = cfg["max_len"],
 
+        init_weights        = False,
+
     )
 
-    model.load_state_dict(checkpoint["model_state"])
+    model.load_state_dict(checkpoint["model_state"], assign=True)
 
     model.eval()
 

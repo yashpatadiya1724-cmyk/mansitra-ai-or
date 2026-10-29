@@ -1,0 +1,16 @@
+{
+  "epoch": 5,
+  "round": 0,
+  "vocab_size": 6163,
+  "best_loss": 3.8229867827433806,
+  "best_accuracy": 40.207507316494684,
+  "config": {
+    "d_model": 768,
+    "nhead": 12,
+    "enc_layers": 8,
+    "dec_layers": 8,
+    "ffn_dim": 3072,
+    "dropout": 0.0,
+    "max_len": 64
+  }
+}

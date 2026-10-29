@@ -75,20 +75,30 @@ _CUSTOM_MODEL_STATUS = {"available": None, "epoch": 0, "mtime": 0.0}
 def get_custom_model_info() -> dict:
     """Returns cached custom model metadata without redundant disk loads: {"ready": bool, "epoch": int}."""
     ckpt_path = os.path.join(os.path.dirname(__file__), "../custom_model/saved_model/manasitra_model.pt")
+    meta_path = os.path.join(os.path.dirname(__file__), "../custom_model/saved_model/model_metadata.json")
     if not os.path.exists(ckpt_path):
         return {"ready": False, "epoch": 0}
     try:
         from inference import is_model_trained  # type: ignore
         if not is_model_trained():
             return {"ready": False, "epoch": 0}
-        mtime = os.path.getmtime(ckpt_path)
+        
+        target_check = meta_path if os.path.exists(meta_path) else ckpt_path
+        mtime = os.path.getmtime(target_check)
         if _CUSTOM_MODEL_STATUS["available"] is not None and _CUSTOM_MODEL_STATUS["mtime"] == mtime:
             return {"ready": _CUSTOM_MODEL_STATUS["available"], "epoch": _CUSTOM_MODEL_STATUS.get("epoch", 0)}
 
-        import torch
-        ckpt = torch.load(ckpt_path, map_location="cpu", weights_only=False)
-        epoch = ckpt.get("epoch", 0)
+        epoch = 0
         min_epoch = int(os.getenv("CUSTOM_MODEL_MIN_EPOCH", "5"))
+        if os.path.exists(meta_path):
+            with open(meta_path, "r", encoding="utf-8") as f:
+                meta = json.load(f)
+                epoch = meta.get("epoch", 0)
+        else:
+            import torch
+            ckpt = torch.load(ckpt_path, map_location="cpu", mmap=True, weights_only=False)
+            epoch = ckpt.get("epoch", 0)
+
         is_avail = epoch >= min_epoch
         _CUSTOM_MODEL_STATUS["available"] = is_avail
         _CUSTOM_MODEL_STATUS["epoch"] = epoch
