@@ -116,9 +116,11 @@ def _get_conn() -> sqlite3.Connection:
 
     conn.row_factory = sqlite3.Row
 
-    conn.execute("PRAGMA journal_mode = WAL;")
-
     conn.execute("PRAGMA synchronous = NORMAL;")
+
+    conn.execute("PRAGMA cache_size = -16000;")
+
+    conn.execute("PRAGMA temp_store = MEMORY;")
 
     return conn
 
@@ -127,6 +129,8 @@ def init_db():
     conn = _get_conn()
 
     with conn:
+
+        conn.execute("PRAGMA journal_mode = WAL;")
 
         conn.executescript("""
 
