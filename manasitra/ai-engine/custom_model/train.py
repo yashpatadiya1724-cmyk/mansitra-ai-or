@@ -101,8 +101,10 @@ def train():
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=EPOCHS)
 
     best_loss = float("inf")
+    use_cuda = device.type == "cuda"
+    scaler = torch.amp.GradScaler("cuda", enabled=use_cuda)
 
-    print("\nTraining started...\n")
+    print(f"\nTraining started on {device} (CUDA AMP FP16: {use_cuda})...\n")
 
     for epoch in range(1, EPOCHS + 1):
         model.train()
@@ -118,17 +120,19 @@ def train():
             src_pad_mask = (src == pad_idx)
             tgt_pad_mask = (tgt_in == pad_idx)
 
-            logits = model(src, tgt_in, src_pad_mask, tgt_pad_mask)
-            # logits: (batch, seq, vocab) → reshape for loss
-            loss = criterion(
-                logits.reshape(-1, tokenizer.vocab_size),
-                tgt_out.reshape(-1),
-            )
+            with torch.amp.autocast(device_type=device.type, enabled=use_cuda):
+                logits = model(src, tgt_in, src_pad_mask, tgt_pad_mask)
+                loss = criterion(
+                    logits.reshape(-1, tokenizer.vocab_size),
+                    tgt_out.reshape(-1),
+                )
 
             optimizer.zero_grad()
-            loss.backward()
+            scaler.scale(loss).backward()
+            scaler.unscale_(optimizer)
             nn.utils.clip_grad_norm_(model.parameters(), 1.0)
-            optimizer.step()
+            scaler.step(optimizer)
+            scaler.update()
 
             total_loss += loss.item()
 
@@ -142,20 +146,32 @@ def train():
         # Save best model
         if avg_loss < best_loss:
             best_loss = avg_loss
+            cfg_dict = {
+                "d_model":    D_MODEL,
+                "nhead":      NHEAD,
+                "enc_layers": ENC_LAYERS,
+                "dec_layers": DEC_LAYERS,
+                "ffn_dim":    FFN_DIM,
+                "dropout":    DROPOUT,
+                "max_len":    MAX_LEN,
+            }
             torch.save({
                 "epoch":       epoch,
+                "profile":     PROFILE_NAME,
                 "model_state": model.state_dict(),
                 "vocab_size":  tokenizer.vocab_size,
-                "config": {
-                    "d_model":    D_MODEL,
-                    "nhead":      NHEAD,
-                    "enc_layers": ENC_LAYERS,
-                    "dec_layers": DEC_LAYERS,
-                    "ffn_dim":    FFN_DIM,
-                    "dropout":    DROPOUT,
-                    "max_len":    MAX_LEN,
-                }
+                "config":      cfg_dict,
             }, os.path.join(SAVE_DIR, "manasitra_model.pt"))
+
+            meta = {
+                "epoch": epoch,
+                "profile": PROFILE_NAME,
+                "vocab_size": tokenizer.vocab_size,
+                "best_loss": float(best_loss),
+                "config": cfg_dict,
+            }
+            with open(os.path.join(SAVE_DIR, "model_metadata.json"), "w", encoding="utf-8") as f:
+                json.dump(meta, f, indent=2)
 
     print(f"\n[DONE] Training complete! Best loss: {best_loss:.4f}")
     print(f"   Model saved to: {SAVE_DIR}/manasitra_model.pt")
