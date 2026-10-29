@@ -97,6 +97,7 @@ from response_engine.conversation_brain import (
     generate_response_stream,
     ollama_is_running,
     get_available_model,
+    get_custom_model_info,
     _custom_model_available,
 )
 
@@ -180,31 +181,13 @@ def ollama_status():
 
     model   = get_available_model() if running else None
 
-    # Check custom model
+    # Check custom model (cached metadata without disk re-load)
 
-    custom_ready = False
+    info         = get_custom_model_info()
 
-    custom_epoch = 0
+    custom_ready = info.get("ready", False)
 
-    try:
-
-        import torch
-
-        ckpt_path = os.path.join(os.path.dirname(__file__), "../ai-engine/custom_model/saved_model/manasitra_model.pt")
-
-        if os.path.exists(ckpt_path):
-
-            ckpt = torch.load(ckpt_path, map_location="cpu", weights_only=False)
-
-            custom_epoch = ckpt.get("epoch", 0)
-
-            min_epoch = int(os.getenv("CUSTOM_MODEL_MIN_EPOCH", "5"))
-
-            custom_ready = custom_epoch >= min_epoch
-
-    except Exception:
-
-        pass
+    custom_epoch = info.get("epoch", 0)
 
     active = "custom" if custom_ready else ("ollama" if running and model else "fallback")
 
@@ -340,7 +323,7 @@ def chat(req: ChatRequest):
 
     dominant_mood = get_dominant_mood(user_id, limit=10)
 
-    model_used    = get_available_model()
+    model_used    = "custom_transformer" if _custom_model_available() else get_available_model()
 
     distressed = emotion in ["sad", "lonely", "stress", "anxiety", "angry", "overwhelmed", "grief"]
 

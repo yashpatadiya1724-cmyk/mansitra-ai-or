@@ -70,19 +70,20 @@ CHAT_URL     = f"{OLLAMA_BASE}/api/chat"
 
 # ── Custom model ──────────────────────────────────────────────────────────────
 
-_CUSTOM_MODEL_STATUS = {"available": None, "mtime": 0.0}
+_CUSTOM_MODEL_STATUS = {"available": None, "epoch": 0, "mtime": 0.0}
 
-def _custom_model_available() -> bool:
+def get_custom_model_info() -> dict:
+    """Returns cached custom model metadata without redundant disk loads: {"ready": bool, "epoch": int}."""
+    ckpt_path = os.path.join(os.path.dirname(__file__), "../custom_model/saved_model/manasitra_model.pt")
+    if not os.path.exists(ckpt_path):
+        return {"ready": False, "epoch": 0}
     try:
         from inference import is_model_trained  # type: ignore
         if not is_model_trained():
-            return False
-        ckpt_path = os.path.join(os.path.dirname(__file__), "../custom_model/saved_model/manasitra_model.pt")
-        if not os.path.exists(ckpt_path):
-            return False
+            return {"ready": False, "epoch": 0}
         mtime = os.path.getmtime(ckpt_path)
         if _CUSTOM_MODEL_STATUS["available"] is not None and _CUSTOM_MODEL_STATUS["mtime"] == mtime:
-            return _CUSTOM_MODEL_STATUS["available"]
+            return {"ready": _CUSTOM_MODEL_STATUS["available"], "epoch": _CUSTOM_MODEL_STATUS.get("epoch", 0)}
 
         import torch
         ckpt = torch.load(ckpt_path, map_location="cpu", weights_only=False)
@@ -90,10 +91,14 @@ def _custom_model_available() -> bool:
         min_epoch = int(os.getenv("CUSTOM_MODEL_MIN_EPOCH", "5"))
         is_avail = epoch >= min_epoch
         _CUSTOM_MODEL_STATUS["available"] = is_avail
+        _CUSTOM_MODEL_STATUS["epoch"] = epoch
         _CUSTOM_MODEL_STATUS["mtime"] = mtime
-        return is_avail
+        return {"ready": is_avail, "epoch": epoch}
     except Exception:
-        return False
+        return {"ready": False, "epoch": 0}
+
+def _custom_model_available() -> bool:
+    return get_custom_model_info()["ready"]
 
 def _call_custom_model(text: str, emotion: str) -> Optional[str]:
 
