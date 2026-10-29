@@ -6,9 +6,11 @@ dist-electron/
 .DS_Store
 Thumbs.db
 .next/
-android/app/build/
-android/.gradle/
-android/local.properties
+**/android/app/build/
+**/android/.gradle/
+**/android/build/
+**/android/local.properties
+**/.idea/
 .venv/
 __pycache__/
 *.pyc
@@ -20,4 +22,3 @@ __pycache__/
 *.db
 psychology_dataset*.json
 training_log.txt
-*.log
