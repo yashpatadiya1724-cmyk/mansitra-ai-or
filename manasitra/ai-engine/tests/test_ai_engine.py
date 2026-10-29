@@ -56,6 +56,9 @@ class TestEmotionPredictor(unittest.TestCase):
             ("aaj mai bahut khush hu", "happy"),
             ("mujhe bahut gussa aa raha hai", "angry"),
             ("dil me bohot ghabrahat aur bechaini hai", "anxiety"),
+            ("aaj mera mood bohot off hai", "sad"),
+            ("bohot bura lag raha hai", "sad"),
+            ("aaj din bohot accha tha maza aaya", "happy"),
         ]
         for text, expected in cases:
             with self.subTest(text=text):
@@ -63,9 +66,15 @@ class TestEmotionPredictor(unittest.TestCase):
                 self.assertEqual(res["emotion"], expected)
 
     def test_negation_handling(self):
-        # "not happy" should not be classified as happy
+        # "not happy" should not be classified as happy, must accurately map to sad
         res = predict_emotion("I am not happy with what happened")
-        self.assertNotEqual(res["emotion"], "happy")
+        self.assertEqual(res["emotion"], "sad")
+
+        res_hi = predict_emotion("aaj mai bilkul khush nahi hu")
+        self.assertEqual(res_hi["emotion"], "sad")
+
+        res_ok = predict_emotion("mai theek nahi hu")
+        self.assertEqual(res_ok["emotion"], "sad")
 
     def test_distress_safety_override(self):
         # Even if a positive word appears, distress words must prevent 'happy'

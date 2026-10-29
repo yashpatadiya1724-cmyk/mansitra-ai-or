@@ -34,6 +34,11 @@ SAMPLES = [
     ("bahut tension aur pressure hai exams ka", "stress"),
     ("koi mera dost nahi hai, akela lag raha hai", "lonely"),
     ("aaj mai bahut khush hu", "happy"),
+    ("aaj mera mood bohot off hai", "sad"),
+    ("bohot bura lag raha hai", "sad"),
+    ("mai theek nahi hu bilkul bhi", "sad"),
+    ("aaj din bohot accha tha maza aaya", "happy"),
+    ("interview se bohot darr lag raha hai", "anxiety"),
 ]
 
 PII_TEST_SAMPLES = [

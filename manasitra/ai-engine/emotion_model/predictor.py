@@ -27,7 +27,9 @@ _KEYWORDS: dict[str, list[tuple[str, float]]] = {
         ("elated", 1.0), ("thrilled", 0.9), ("delighted", 0.9), ("good news", 0.8),
         ("passed", 0.7), ("got marks", 0.8), ("promotion", 0.8), ("celebrate", 0.8),
         ("khush", 1.0), ("khushi", 1.0), ("sukoon", 0.9), ("achha lag raha", 0.9),
-        ("badhiya", 0.8), ("maza aa gaya", 0.9), ("anand", 0.9), ("shandar", 0.8),
+        ("badhiya", 0.8), ("maza aa gaya", 0.9), ("maza aaya", 0.9), ("mazza aaya", 0.9),
+        ("anand", 0.9), ("shandar", 0.8), ("bohot accha", 0.9), ("bahut accha", 0.9),
+        ("bohot achha", 0.9), ("bahut achha", 0.9), ("accha tha", 0.8), ("achha tha", 0.8),
     ],
     "sad": [
         ("sad", 1.0), ("cry", 1.0), ("crying", 1.0), ("tears", 0.9),
@@ -43,7 +45,10 @@ _KEYWORDS: dict[str, list[tuple[str, float]]] = {
         ("ro rahi", 1.0), ("aansoo", 0.9), ("aansu", 0.9), ("dil toot", 1.0),
         ("dukh", 0.9), ("dukhi", 1.0), ("dard", 0.8), ("takleef", 0.9),
         ("mayus", 0.9), ("mayoos", 0.9), ("bebas", 0.8), ("achha nahi lag raha", 0.9),
-        ("theek nahi", 0.8), ("khush nahi", 0.9), ("khush nhi", 0.9),
+        ("theek nahi", 0.9), ("thik nahi", 0.9), ("khush nahi", 1.0), ("khush nhi", 1.0),
+        ("mood off", 1.0), ("mood bohot off", 1.0), ("mood bahut off", 1.0), ("mood kharab", 1.0), ("mood bohot kharab", 1.0), ("mood bahut kharab", 1.0), ("bura lag", 1.0), ("bura lag raha", 1.0),
+        ("mann nahi lag", 0.9), ("man nahi lag", 0.9), ("dil nahi lag", 0.9),
+        ("kuch accha nahi", 1.0), ("kuch achha nahi", 1.0), ("sahi nahi", 0.9),
     ],
     "angry": [
         ("angry", 1.0), ("anger", 1.0), ("furious", 1.0), ("rage", 1.0),
@@ -76,8 +81,9 @@ _KEYWORDS: dict[str, list[tuple[str, float]]] = {
         ("dread", 0.9), ("terrified", 1.0), ("uneasy", 0.7), ("restless", 0.7),
         ("what if", 0.8), ("can't stop thinking", 0.9), ("mind won't stop", 0.9),
         ("catastroph", 0.8), ("worst case", 0.8),
-        ("ghabrahat", 1.0), ("dar lag", 0.9), ("dar", 0.7), ("darr", 0.8),
+        ("ghabrahat", 1.0), ("dar lag", 0.9), ("darr lag", 0.9), ("dar", 0.7), ("darr", 0.8),
         ("bechain", 0.9), ("bechaini", 1.0), ("dhak dhak", 0.8), ("khauf", 0.9),
+        ("phat rahi", 1.0), ("fatt rahi", 1.0),
     ],
     "lonely": [
         ("lonely", 1.0), ("alone", 0.9), ("isolated", 1.0), ("no one", 0.9),
@@ -118,6 +124,12 @@ _KEYWORDS: dict[str, list[tuple[str, float]]] = {
 # ── Negation patterns (English + Hinglish) ──────────────────────────────────
 _NEGATIONS = re.compile(
     r"\b(not|never|no|don't|doesn't|didn't|can't|cannot|won't|isn't|aren't|wasn't|nahi|nhi|mat)\b\s+\w+",
+    re.IGNORECASE
+)
+
+_NEGATED_POSITIVE = re.compile(
+    r"\b(not|never|no|don't|do not|didn't|cannot|can't|won't|isn't|nahi|nhi|na)\s+(feel\s+)?(happy|glad|good|fine|okay|ok|well|cheerful|great|khush|theek|thik|sukoon|achha|accha|sahi)\b|"
+    r"\b(happy|glad|good|fine|okay|ok|well|cheerful|great|khush|theek|thik|sukoon|achha|accha|sahi)\s+(nahi|nhi|na|mat)\b",
     re.IGNORECASE
 )
 
@@ -165,9 +177,16 @@ def predict_emotion(text: str) -> dict:
 
     scores: dict[str, float] = {label: 0.0 for label in LABELS}
 
+    # High-precision negated positive handling: 'not happy', 'khush nahi', 'theek nahi' -> sad
+    is_negated_positive = bool(_NEGATED_POSITIVE.search(text_lower))
+    if is_negated_positive:
+        scores["sad"] += 1.5
+
     for emotion, keywords in _KEYWORDS.items():
+        if emotion == "happy" and is_negated_positive:
+            continue
         for kw, weight in keywords:
-            if kw in text_clean:
+            if kw in text_clean or (emotion == "sad" and kw in text_lower):
                 scores[emotion] += weight
 
     # ── Compound detection ────────────────────────────────────────────────────
@@ -199,10 +218,11 @@ def predict_emotion(text: str) -> dict:
         "stress", "anxious", "overwhelm", "angry", "furious", "grief",
         "lost", "broken", "hurt", "pain", "alone", "nobody", "no one",
         "udas", "udaas", "rona", "dard", "takleef", "akela", "akeli",
-        "pareshan", "preshan", "tension", "gussa", "dar", "bechain",
-        "toot", "tanhai"
+        "pareshan", "preshan", "tension", "gussa", "dar", "darr", "bechain",
+        "toot", "tanhai", "mood off", "mood kharab", "bura lag", "kuch accha nahi",
+        "kuch achha nahi", "thak", "fat raha", "fat rahi", "phat rahi"
     ]
-    if top == "happy" and any(w in text_lower for w in distress_words):
+    if (top == "happy" and (is_negated_positive or any(w in text_lower for w in distress_words))):
         probs["happy"] = 0.0
         total2 = sum(probs.values()) or 1.0
         probs  = {k: round(v / total2, 4) for k, v in probs.items()}
