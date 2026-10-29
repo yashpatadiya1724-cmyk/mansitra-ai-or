@@ -2,6 +2,7 @@ const express = require('express')
 const router = express.Router()
 const { createChatCompletion } = require('../services/groq-client')
 const { sanitizeInput, validateLanguage } = require('../services/safety-service')
+const { hasCrisisKeyword } = require('../utils/prompt-builder')
 const { chatLimiter } = require('../middleware/rate-limiter')
 
 router.post('/classify', chatLimiter, async (req, res) => {
@@ -9,6 +10,14 @@ router.post('/classify', chatLimiter, async (req, res) => {
     const { message, language } = req.body
     const lang = validateLanguage(language)
     const sanitized = sanitizeInput(message)
+
+    if (hasCrisisKeyword(sanitized)) {
+      return res.json({
+        riskLevel: 'critical',
+        flags: ['crisis_keyword_detected'],
+        recommendedAction: 'crisis_screen',
+      })
+    }
 
     const completion = await createChatCompletion([
       {
@@ -25,6 +34,14 @@ router.post('/classify', chatLimiter, async (req, res) => {
     res.json(parsed)
   } catch (err) {
     console.error('Safety classify error:', err.message)
+    const fallbackSanitized = sanitizeInput(req.body?.message || '')
+    if (hasCrisisKeyword(fallbackSanitized)) {
+      return res.json({
+        riskLevel: 'critical',
+        flags: ['crisis_keyword_detected_offline'],
+        recommendedAction: 'crisis_screen',
+      })
+    }
     res.json({ riskLevel: 'none', flags: [], recommendedAction: 'none' })
   }
 })

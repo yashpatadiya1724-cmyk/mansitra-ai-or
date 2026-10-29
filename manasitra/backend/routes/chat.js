@@ -13,6 +13,15 @@ const extractJSON = (str) => {
   return null
 }
 
+const MULTILINGUAL_FALLBACKS = {
+  hi: "Main yahan aapke saath hu dost. Aap akele nahi hain, sab theek ho jayega. 💙 Kya aap thoda aur bata sakte hain ki kya chal raha hai?",
+  hg: "Main yahan aapke saath hu dost. You are not alone, sab theek ho jayega. 💙 Thoda aur batao kya chal raha hai?",
+  gu: "હું અહીં તમારી સાથે છું, મિત્ર. તમે એકલા નથી, બધું સારું થઈ જશે. 💙 શું તમે થોડું વધુ જણાવી શકો કે શું થઈ રહ્યું છે?",
+  gj: "Hu ahi tari sathe chu dost. You are not alone, badhu saru thai jashe. 💙 Thodu vadhare batav shu thayu che?",
+  mr: "मी इथे तुझ्या सोबत आहे, मित्र. तू एकटा नाहीस, सर्व काही ठीक होईल. 💙 काय घडत आहे ते मला थोडे अधिक सांगशील का?",
+  en: "I'm right here with you, friend. You are not alone, and we will get through this together. 💙 Can you tell me a little more about what's on your mind?",
+}
+
 router.post('/', chatLimiter, async (req, res) => {
   try {
     const { messages, language, responseMode, sessionContext = [], voice_mode = false } = req.body
@@ -96,8 +105,11 @@ router.post('/', chatLimiter, async (req, res) => {
       })
     }
 
+    const langKey = req.body?.language || 'hi'
+    const fallbackText = MULTILINGUAL_FALLBACKS[langKey] || MULTILINGUAL_FALLBACKS.en
+
     return res.json({
-      response: "Main yahan aapke saath hu. Aap akele nahi hain, sab theek ho jayega. 💙 Kya aap thoda aur bata sakte hain ki kya chal raha hai?",
+      response: fallbackText,
       detectedMood: 'neutral',
       riskLevel: 'none',
       suggestedTool: null,
