@@ -260,6 +260,10 @@ CRISIS_KEYWORDS = [
 
     "atmahatya", "atma hatya", "koi fayda nahi jeene ka",
 
+    "khud ko maar", "khud ko mar", "khud ko khatam", "apni jaan le",
+
+    "marne ja raha", "marne ja rahi", "chhat se kood",
+
 ]
 
 

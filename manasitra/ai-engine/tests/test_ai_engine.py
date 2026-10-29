@@ -29,7 +29,7 @@ from memory_engine.memory import (
     record_emotion_transition,
     get_current_transition,
 )
-from response_engine.conversation_brain import is_crisis, _reply_breaks_emotional_rules
+from response_engine.conversation_brain import is_crisis, _reply_breaks_emotional_rules, get_custom_model_info
 
 
 class TestEmotionPredictor(unittest.TestCase):
@@ -146,6 +146,19 @@ class TestConversationBrain(unittest.TestCase):
             user_message="My dog passed away",
         )
         self.assertTrue(breaks_rule)
+
+    def test_custom_model_cached_metadata(self):
+        info = get_custom_model_info()
+        self.assertIn("ready", info)
+        self.assertIn("epoch", info)
+        self.assertIsInstance(info["ready"], bool)
+        self.assertIsInstance(info["epoch"], int)
+
+    def test_multilingual_crisis_keywords(self):
+        # Hindi, Hinglish, and regional crisis phrases
+        self.assertTrue(is_crisis("khud ko maarne ka mann kar raha hai"))
+        self.assertTrue(is_crisis("jeena nahi chahta mai"))
+        self.assertFalse(is_crisis("aaj assignment submit kiya"))
 
 
 if __name__ == "__main__":
