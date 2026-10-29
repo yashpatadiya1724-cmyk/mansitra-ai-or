@@ -22,3 +22,4 @@ __pycache__/
 *.db
 psychology_dataset*.json
 training_log.txt
+.vscode/

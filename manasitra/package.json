@@ -11,7 +11,9 @@
     "dev:backend": "node --watch backend/server.js",
     "dev:frontend": "npm run dev --prefix manasitra-web",
     "build:frontend": "npm run build --prefix manasitra-web",
-    "dist:win": "npm run build:frontend && electron-packager . Manasitra --platform=win32 --arch=x64 --out=dist-electron --overwrite --ignore=dist-electron --ignore=manasitra-web/src --ignore=manasitra-web/node_modules --ignore=node_modules/.cache"
+    "dist:win": "npm run build:frontend && electron-packager . Manasitra --platform=win32 --arch=x64 --out=dist-electron --overwrite --ignore=dist-electron --ignore=manasitra-web/src --ignore=manasitra-web/node_modules --ignore=node_modules/.cache",
+    "test:ai": "python -m unittest ai-engine/tests/test_ai_engine.py",
+    "bench:ai": "python ai-engine/benchmarks/measure_pipeline.py"
   },
   "build": {
     "appId": "com.manasitra.app",
