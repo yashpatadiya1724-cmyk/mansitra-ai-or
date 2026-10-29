@@ -56,8 +56,8 @@ router.post('/', chatLimiter, async (req, res) => {
     ]
 
     const completion = await createChatCompletion(fullMessages, {
-      max_tokens: voice_mode ? 80 : 800,
-      temperature: 0.85,
+      max_tokens: voice_mode ? 80 : 220,
+      temperature: 0.7,
     })
     const raw = completion.choices[0]?.message?.content || ''
     const parsed = extractJSON(raw)

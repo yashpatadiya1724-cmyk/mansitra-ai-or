@@ -12,8 +12,8 @@ const getGroqClient = () => {
 const createChatCompletion = async (messages, options = {}) => {
   const groq = getGroqClient()
   const model = process.env.GROQ_MODEL || 'llama-3.3-70b-versatile'
-  const maxTokens = options.max_tokens || parseInt(process.env.GROQ_MAX_TOKENS) || 800
-  const temperature = options.temperature || 0.85
+  const maxTokens = options.max_tokens || parseInt(process.env.GROQ_MAX_TOKENS) || 220
+  const temperature = options.temperature || 0.7
 
   return groq.chat.completions.create({
     model,

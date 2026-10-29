@@ -99,6 +99,8 @@ from response_engine.conversation_brain import (
     get_available_model,
     get_custom_model_info,
     _custom_model_available,
+    is_crisis,
+    CRISIS_RESPONSE,
 )
 
 # ── App ───────────────────────────────────────────────────────────────────────
@@ -128,6 +130,19 @@ app.add_middleware(
     allow_headers=["*"],
 
 )
+
+@app.on_event("startup")
+def startup_event():
+    """Eager pre-warming of emotion predictor and custom transformer for instant response latency."""
+    try:
+        predict_emotion("warmup test")
+    except Exception:
+        pass
+    try:
+        from inference import warmup_model  # type: ignore
+        warmup_model()
+    except Exception:
+        pass
 
 # ── Schemas ───────────────────────────────────────────────────────────────────
 
@@ -282,6 +297,30 @@ def chat(req: ChatRequest):
     privacy = privacy_filter(req.message)
 
     safe_message = privacy.redacted_text
+
+    # 0. Zero-latency crisis shield early return
+    if is_crisis(safe_message):
+        user_id = get_or_create_user(req.user_name)
+        save_mood(user_id, "grief", safe_message)
+        save_message(user_id, "user", safe_message, "grief")
+        save_message(user_id, "assistant", CRISIS_RESPONSE)
+        latency_ms = round((time.perf_counter() - started_at) * 1000, 2)
+        return ChatResponse(
+            reply=CRISIS_RESPONSE,
+            emotion="grief",
+            confidence=1.0,
+            scores={"grief": 1.0},
+            emoji="💙",
+            model_used="safety_shield",
+            transition=None,
+            patterns=[],
+            technical_proof={
+                "latency_ms": latency_ms,
+                "engine_route": "crisis_shield",
+                "privacy": privacy_metadata(privacy),
+                "memory_features_used": {"crisis_bypass": True},
+            },
+        )
 
     # 1. Emotion detection
 
