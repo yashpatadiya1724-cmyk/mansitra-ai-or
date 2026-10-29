@@ -59,7 +59,15 @@ def train():
     print("  Manasitra Custom Model Training")
     print("=" * 60)
 
-    # Load data
+    # Load data (auto-generate if missing in fresh clone)
+    if not os.path.exists(DATASET_PATH):
+        print(f"Dataset not found at {DATASET_PATH}. Auto-generating 40,000+ samples...")
+        try:
+            import generate_massive_dataset
+            generate_massive_dataset.generate_pairs()
+        except Exception as e:
+            print(f"Could not auto-generate dataset: {e}")
+
     with open(DATASET_PATH, encoding="utf-8") as f:
         data = json.load(f)
 
