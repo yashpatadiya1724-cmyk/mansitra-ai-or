@@ -30,6 +30,7 @@ from memory_engine.memory import (
     get_current_transition,
 )
 from response_engine.conversation_brain import is_crisis, _reply_breaks_emotional_rules, get_custom_model_info
+from model import MODEL_PROFILES, get_model_profile, build_model
 
 
 class TestEmotionPredictor(unittest.TestCase):
@@ -168,6 +169,24 @@ class TestConversationBrain(unittest.TestCase):
         self.assertTrue(is_crisis("khud ko maarne ka mann kar raha hai"))
         self.assertTrue(is_crisis("jeena nahi chahta mai"))
         self.assertFalse(is_crisis("aaj assignment submit kiya"))
+
+
+class TestModelArchitectureScaling(unittest.TestCase):
+    def test_model_profiles_definitions(self):
+        self.assertIn("small", MODEL_PROFILES)
+        self.assertIn("base", MODEL_PROFILES)
+        self.assertIn("large", MODEL_PROFILES)
+        self.assertIn("xlarge", MODEL_PROFILES)
+        self.assertEqual(MODEL_PROFILES["base"]["enc_layers"], 8)
+        self.assertEqual(MODEL_PROFILES["large"]["enc_layers"], 12)
+        self.assertEqual(MODEL_PROFILES["xlarge"]["enc_layers"], 16)
+
+    def test_build_model_factory(self):
+        model_s = build_model("small", vocab_size=1000, init_weights=False)
+        self.assertGreater(model_s.count_parameters(), 25_000_000)
+
+        model_l = build_model("large", vocab_size=1000, init_weights=False)
+        self.assertGreater(model_l.count_parameters(), 350_000_000)
 
 
 if __name__ == "__main__":

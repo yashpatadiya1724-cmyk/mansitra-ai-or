@@ -14,19 +14,24 @@ import torch.nn as nn
 from torch.utils.data import Dataset, DataLoader
 from model import ManasitraTransformer, ManasitraTokenizer
 
-# ── Config (100M+ Parameters — 146,522,899 total) ────────────────────────────
+# ── Config & Architecture Scaling (Profiles: small, base [146M], large [372M], xlarge [758M]) ──
+from model import MODEL_PROFILES, get_model_profile, build_model
+
+PROFILE_NAME = os.getenv("MODEL_PROFILE", "base")
+_cfg         = get_model_profile(PROFILE_NAME)
+
 DATASET_PATH = os.path.join(os.path.dirname(__file__), "psychology_dataset.json")
 SAVE_DIR     = os.path.join(os.path.dirname(__file__), "saved_model")
-MAX_LEN      = 64
-BATCH_SIZE   = 16       # reduced for 146M model to fit in CPU/RAM
-EPOCHS       = 150      # more epochs for larger model
-LR           = 2e-4     # lower LR for stability with large model
-D_MODEL      = 768      # scaled up from 128
-NHEAD        = 12       # scaled up from 4
-ENC_LAYERS   = 8        # scaled up from 3
-DEC_LAYERS   = 8        # scaled up from 3
-FFN_DIM      = 3072     # scaled up from 256
-DROPOUT      = 0.1
+MAX_LEN      = _cfg["max_len"]
+BATCH_SIZE   = int(os.getenv("BATCH_SIZE", "8" if PROFILE_NAME in ("large", "xlarge") else "16"))
+EPOCHS       = int(os.getenv("EPOCHS", "150"))
+LR           = float(os.getenv("LR", "1.5e-4" if PROFILE_NAME in ("large", "xlarge") else "2e-4"))
+D_MODEL      = _cfg["d_model"]
+NHEAD        = _cfg["nhead"]
+ENC_LAYERS   = _cfg["enc_layers"]
+DEC_LAYERS   = _cfg["dec_layers"]
+FFN_DIM      = _cfg["ffn_dim"]
+DROPOUT      = _cfg["dropout"]
 
 os.makedirs(SAVE_DIR, exist_ok=True)
 

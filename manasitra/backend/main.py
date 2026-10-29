@@ -102,6 +102,7 @@ from response_engine.conversation_brain import (
     is_crisis,
     CRISIS_RESPONSE,
 )
+from model import MODEL_PROFILES
 
 # ── App ───────────────────────────────────────────────────────────────────────
 
@@ -222,6 +223,26 @@ def ollama_status():
 
         "active_engine":   active,
 
+        "active_profile":  info.get("profile", "base"),
+
+        "available_architectures": {k: {"parameters": v["parameters"], "description": v["description"]} for k, v in MODEL_PROFILES.items()},
+
+    }
+
+@app.get("/models")
+def list_available_models():
+    """List all supported model scales (from 32M edge to 758M foundation models and 70B LLMs)."""
+    running = ollama_is_running()
+    ollama_m = get_available_model() if running else None
+    c_info = get_custom_model_info()
+    return {
+        "custom_transformer_profiles": MODEL_PROFILES,
+        "active_custom_profile": c_info.get("profile", "base"),
+        "cloud_llm_models": {
+            "llama-3.3-70b-versatile": "70 Billion parameters, deep reasoning & emotional intelligence",
+            "llama-3.1-8b-instant": "8 Billion parameters, ultra-low latency conversational speed",
+        },
+        "ollama_local_model": ollama_m,
     }
 
 @app.get("/innovation/status")

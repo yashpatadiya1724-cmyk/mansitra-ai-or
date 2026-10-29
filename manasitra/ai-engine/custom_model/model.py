@@ -299,6 +299,77 @@ class PositionalEncoding(nn.Module):
 
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# MODEL ARCHITECTURE PROFILES (from 32M edge to 758M foundation scale)
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+MODEL_PROFILES = {
+    "small": {
+        "d_model": 384,
+        "nhead": 6,
+        "enc_layers": 6,
+        "dec_layers": 6,
+        "ffn_dim": 1536,
+        "dropout": 0.1,
+        "max_len": 64,
+        "parameters": "32M",
+        "description": "Compact edge profile for rapid CPU inference",
+    },
+    "base": {
+        "d_model": 768,
+        "nhead": 12,
+        "enc_layers": 8,
+        "dec_layers": 8,
+        "ffn_dim": 3072,
+        "dropout": 0.1,
+        "max_len": 64,
+        "parameters": "146M",
+        "description": "Standard balanced model for conversational empathy and psychology",
+    },
+    "large": {
+        "d_model": 1024,
+        "nhead": 16,
+        "enc_layers": 12,
+        "dec_layers": 12,
+        "ffn_dim": 4096,
+        "dropout": 0.1,
+        "max_len": 128,
+        "parameters": "372M",
+        "description": "High-capacity deep transformer for complex psychological reasoning",
+    },
+    "xlarge": {
+        "d_model": 1280,
+        "nhead": 20,
+        "enc_layers": 16,
+        "dec_layers": 16,
+        "ffn_dim": 5120,
+        "dropout": 0.1,
+        "max_len": 128,
+        "parameters": "758M",
+        "description": "State-of-the-art 758M parameter heavy foundation model",
+    },
+}
+
+def get_model_profile(profile_name: str) -> dict:
+    if profile_name not in MODEL_PROFILES:
+        valid = ", ".join(MODEL_PROFILES.keys())
+        raise ValueError(f"Unknown model profile '{profile_name}'. Valid profiles: {valid}")
+    return MODEL_PROFILES[profile_name]
+
+def build_model(profile_name: str = "base", vocab_size: int = 6163, init_weights: bool = True) -> "ManasitraTransformer":
+    cfg = get_model_profile(profile_name)
+    return ManasitraTransformer(
+        vocab_size=vocab_size,
+        d_model=cfg["d_model"],
+        nhead=cfg["nhead"],
+        num_encoder_layers=cfg["enc_layers"],
+        num_decoder_layers=cfg["dec_layers"],
+        dim_feedforward=cfg["ffn_dim"],
+        dropout=cfg["dropout"],
+        max_len=cfg["max_len"],
+        init_weights=init_weights,
+    )
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 # TRANSFORMER MODEL
 
@@ -389,6 +460,10 @@ class ManasitraTransformer(nn.Module):
         if init_weights:
 
             self._init_weights()
+
+    def count_parameters(self) -> int:
+        return sum(p.numel() for p in self.parameters())
+
 
 
 
