@@ -24,7 +24,7 @@ DATASET_PATH = os.path.join(os.path.dirname(__file__), "psychology_dataset.json"
 SAVE_DIR     = os.path.join(os.path.dirname(__file__), "saved_model")
 MAX_LEN      = _cfg["max_len"]
 BATCH_SIZE   = int(os.getenv("BATCH_SIZE", "8" if PROFILE_NAME in ("large", "xlarge") else "16"))
-EPOCHS       = int(os.getenv("EPOCHS", "150"))
+EPOCHS       = int(os.getenv("EPOCHS", "25" if PROFILE_NAME in ("large", "xlarge") else "50"))
 LR           = float(os.getenv("LR", "1.5e-4" if PROFILE_NAME in ("large", "xlarge") else "2e-4"))
 D_MODEL      = _cfg["d_model"]
 NHEAD        = _cfg["nhead"]
@@ -114,7 +114,9 @@ def train():
 
     print(f"\nTraining started on {device} (CUDA AMP FP16: {use_cuda})...\n")
 
+    import time
     for epoch in range(1, EPOCHS + 1):
+        epoch_start = time.perf_counter()
         model.train()
         total_loss = 0.0
 
@@ -148,8 +150,11 @@ def train():
         avg_loss = total_loss / len(dataloader)
         ppl      = math.exp(min(avg_loss, 20))
 
-        if epoch % 10 == 0 or epoch == 1:
-            print(f"Epoch {epoch:3d}/{EPOCHS} | Loss: {avg_loss:.4f} | PPL: {ppl:.2f} | LR: {scheduler.get_last_lr()[0]:.6f}")
+        elapsed_epoch = time.perf_counter() - epoch_start
+        print(
+            f"Epoch {epoch:2d}/{EPOCHS} ({elapsed_epoch:.1f}s) | Loss: {avg_loss:.4f} | PPL: {ppl:.2f} | LR: {scheduler.get_last_lr()[0]:.6f}",
+            flush=True,
+        )
 
         # Save best model
         if avg_loss < best_loss:
