@@ -23,7 +23,15 @@ _cfg         = get_model_profile(PROFILE_NAME)
 DATASET_PATH = os.path.join(os.path.dirname(__file__), "psychology_dataset.json")
 SAVE_DIR     = os.path.join(os.path.dirname(__file__), "saved_model")
 MAX_LEN      = _cfg["max_len"]
-BATCH_SIZE   = int(os.getenv("BATCH_SIZE", "8" if PROFILE_NAME in ("large", "xlarge") else "16"))
+# VRAM-safe batch size & gradient accumulation to prevent Colab GPU OOM crashes
+raw_batch    = int(os.getenv("BATCH_SIZE", "32"))
+if PROFILE_NAME in ("large", "xlarge"):
+    BATCH_SIZE = min(raw_batch, 8)
+    ACCUM_STEPS = max(1, 32 // BATCH_SIZE)
+else:
+    BATCH_SIZE = min(raw_batch, 16)
+    ACCUM_STEPS = max(1, 32 // BATCH_SIZE)
+
 EPOCHS       = int(os.getenv("EPOCHS", "25" if PROFILE_NAME in ("large", "xlarge") else "50"))
 LR           = float(os.getenv("LR", "1.5e-4" if PROFILE_NAME in ("large", "xlarge") else "2e-4"))
 D_MODEL      = _cfg["d_model"]
@@ -112,7 +120,7 @@ def train():
     use_cuda = device.type == "cuda"
     scaler = torch.amp.GradScaler("cuda", enabled=use_cuda)
 
-    print(f"\nTraining started on {device} (CUDA AMP FP16: {use_cuda})...\n")
+    print(f"\nTraining started on {device} (CUDA AMP FP16: {use_cuda}) | Batch: {BATCH_SIZE} | Accum Steps: {ACCUM_STEPS} (Effective Batch: {BATCH_SIZE * ACCUM_STEPS})...\n")
 
     import time
     for epoch in range(1, EPOCHS + 1):
@@ -120,7 +128,8 @@ def train():
         model.train()
         total_loss = 0.0
 
-        for src, tgt in dataloader:
+        optimizer.zero_grad()
+        for step_idx, (src, tgt) in enumerate(dataloader):
             src, tgt = src.to(device), tgt.to(device)
 
             # Teacher forcing: decoder input = tgt[:-1], target = tgt[1:]
@@ -136,15 +145,21 @@ def train():
                     logits.reshape(-1, tokenizer.vocab_size),
                     tgt_out.reshape(-1),
                 )
+                loss_scaled = loss / ACCUM_STEPS
 
-            optimizer.zero_grad()
-            scaler.scale(loss).backward()
-            scaler.unscale_(optimizer)
-            nn.utils.clip_grad_norm_(model.parameters(), 1.0)
-            scaler.step(optimizer)
-            scaler.update()
+            scaler.scale(loss_scaled).backward()
+
+            if (step_idx + 1) % ACCUM_STEPS == 0 or (step_idx + 1) == len(dataloader):
+                scaler.unscale_(optimizer)
+                nn.utils.clip_grad_norm_(model.parameters(), 1.0)
+                scaler.step(optimizer)
+                scaler.update()
+                optimizer.zero_grad()
 
             total_loss += loss.item()
+
+        if use_cuda:
+            torch.cuda.empty_cache()
 
         scheduler.step()
         avg_loss = total_loss / len(dataloader)
